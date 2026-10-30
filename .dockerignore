@@ -1,0 +1,15 @@
+# 只保留构建需要的文件；密钥与本地数据不进镜像
+**/node_modules
+**/dist
+server/data
+server/uploads
+server/backups
+server/.env
+.tmp-*
+**/.tmp-*
+.git
+.gitignore
+*.log
+README.md
+DEPLOY.md
+start.cmd

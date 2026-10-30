@@ -1,0 +1,28 @@
+{
+  "name": "health-app-server",
+  "version": "0.6.0",
+  "private": true,
+  "type": "module",
+  "description": "个人健康管理应用 - 后端 API（Express + SQLite）",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env --watch src/server.js",
+    "start": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env src/server.js",
+    "start:prod": "node --disable-warning=ExperimentalWarning src/server.js",
+    "db:reset": "node --disable-warning=ExperimentalWarning scripts/reset-db.js",
+    "db:import": "node --disable-warning=ExperimentalWarning scripts/import-json.js",
+    "seed:demo": "node --disable-warning=ExperimentalWarning scripts/seed-demo.js",
+    "backup": "node --disable-warning=ExperimentalWarning scripts/backup-db.js",
+    "smoke": "node --env-file-if-exists=.env scripts/smoke.js",
+    "smoke:diet": "node --env-file-if-exists=.env scripts/diet-smoke.js",
+    "smoke:chat": "node --env-file-if-exists=.env scripts/chat-smoke.js",
+    "selftest:vision": "node scripts/vision-selftest.js",
+    "uploads:clean": "node --disable-warning=ExperimentalWarning scripts/clean-uploads.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}
