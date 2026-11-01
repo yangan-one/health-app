@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db, ensureOwnerAccount, publicUser } from '../db.js';
+import { db, DEFAULT_USER_ID, ensureOwnerAccount, publicUser } from '../db.js';
 import { ApiError } from '../lib/util.js';
 import {
   PASSWORD_MAX,
@@ -142,6 +142,26 @@ router.post('/auth/password', (req, res) => {
     user.id
   );
   res.json({ ok: true, data: { updated: true } });
+});
+
+/**
+ * 注销自己的账号：连带删除该账号的所有健康数据（表上都是 ON DELETE CASCADE）。
+ * 主账号不允许注销 —— 它是实例的基础账号，AI 配置也挂在它名下。
+ * 需要带当前密码，避免手机被别人拿去时被恶意清空。
+ */
+router.delete('/auth/account', (req, res) => {
+  const session = readSession(req);
+  const user = session ? db.prepare('SELECT * FROM users WHERE id = ?').get(session.userId) : null;
+  if (!user) throw new ApiError(401, '需要登录');
+  if (user.id === DEFAULT_USER_ID) {
+    throw new ApiError(400, '主账号不能注销：AI 配置与默认数据都挂在它上面');
+  }
+  const password = String(req.body?.password ?? '');
+  if (!verifyPassword(password, user.password_hash)) throw new ApiError(400, '密码不对，无法注销');
+
+  db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
+  revokeSession(req, res);
+  res.json({ ok: true, data: { deleted: true } });
 });
 
 export default router;
