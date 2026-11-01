@@ -10,6 +10,7 @@
  *   - 运动/饮食默认跳过已存在的相同记录；replace=true 时先清空再导入
  */
 import { db, DEFAULT_USER_ID } from '../db.js';
+import { currentUserId } from './context.js';
 import { ApiError } from './util.js';
 
 const BODY_COLS = ['record_date', 'weight_kg', 'body_fat_pct', 'neck_cm', 'shoulder_cm',
@@ -49,7 +50,7 @@ const insertItem = db.prepare(
    VALUES (?, ${ITEM_COLS.map(() => '?').join(', ')})`
 );
 
-export function importPayload(payload, { replace = false, userId = DEFAULT_USER_ID } = {}) {
+export function importPayload(payload, { replace = false, userId = currentUserId(DEFAULT_USER_ID) } = {}) {
   if (!payload || typeof payload !== 'object') throw new ApiError(400, '导入内容不是对象');
   if (payload.app && payload.app !== 'health-app') {
     throw new ApiError(400, `这不是本应用导出的文件（app=${payload.app}）`);

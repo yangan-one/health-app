@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db, DEFAULT_USER_ID } from '../db.js';
+import { currentUserId } from '../lib/context.js';
 import { ApiError, parseDate, requireObject, round, todayLocal } from '../lib/util.js';
 import { analyzeFoodImage, guessMealType, MEAL_LABELS } from '../lib/vision.js';
 import { listFoods, matchFood, resolveItemNutrition, sumItems } from '../lib/foods.js';
@@ -61,7 +62,7 @@ function getRecord(id) {
               total_calories, total_protein, total_fat, total_carbs, note, created_at
          FROM diet_records WHERE id = ? AND user_id = ?`
     )
-    .get(id, DEFAULT_USER_ID);
+    .get(id, currentUserId(DEFAULT_USER_ID));
   if (!row) return null;
   const items = db
     .prepare(
@@ -160,7 +161,7 @@ router.post('/diet/records', (req, res, next) => {
               @total_calories, @total_protein, @total_fat, @total_carbs, @note)`
         )
         .run({
-          user_id: DEFAULT_USER_ID,
+          user_id: currentUserId(DEFAULT_USER_ID),
           record_date: recordDate,
           meal_type: mealType,
           image_path: imagePath,
@@ -218,7 +219,7 @@ router.get('/diet/records', (req, res, next) => {
           ORDER BY CASE meal_type WHEN 'breakfast' THEN 1 WHEN 'lunch' THEN 2
                                   WHEN 'dinner' THEN 3 ELSE 4 END, id`
       )
-      .all(DEFAULT_USER_ID, date);
+      .all(currentUserId(DEFAULT_USER_ID), date);
 
     const itemStmt = db.prepare(
       `SELECT id, food_id, food_name, estimated_weight_g, calories, protein, fat, carbs, confidence, is_manual
@@ -254,10 +255,10 @@ router.delete('/diet/records/:id', (req, res, next) => {
     if (!Number.isInteger(id) || id <= 0) throw new ApiError(400, 'id 不合法');
     const row = db
       .prepare('SELECT image_path FROM diet_records WHERE id = ? AND user_id = ?')
-      .get(id, DEFAULT_USER_ID);
+      .get(id, currentUserId(DEFAULT_USER_ID));
     if (!row) throw new ApiError(404, '记录不存在');
 
-    db.prepare('DELETE FROM diet_records WHERE id = ? AND user_id = ?').run(id, DEFAULT_USER_ID);
+    db.prepare('DELETE FROM diet_records WHERE id = ? AND user_id = ?').run(id, currentUserId(DEFAULT_USER_ID));
     const image_removed = removeImage(row.image_path);
     res.json({ ok: true, data: { id, deleted: true, image_removed } });
   } catch (err) {

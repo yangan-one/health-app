@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db, DEFAULT_USER_ID, getCurrentUser } from '../db.js';
+import { currentUserId } from '../lib/context.js';
 import { ApiError, parseDate, parseNumber, requireObject, todayLocal } from '../lib/util.js';
 import { METRIC_RULES, METRIC_META } from '../lib/metrics.js';
 import { computeBmi, waistHipRatio } from '../lib/body.js';
@@ -52,7 +53,7 @@ router.post('/body-metrics', (req, res) => {
   const values = readMetrics(body);
 
   const cols = Object.keys(values);
-  const params = { user_id: DEFAULT_USER_ID, record_date: recordDate, ...values };
+  const params = { user_id: currentUserId(DEFAULT_USER_ID), record_date: recordDate, ...values };
 
   if (body.note !== undefined) {
     if (body.note !== null && typeof body.note !== 'string') {
@@ -74,7 +75,7 @@ router.post('/body-metrics', (req, res) => {
 
   const saved = db
     .prepare('SELECT * FROM body_metrics WHERE user_id = ? AND record_date = ?')
-    .get(DEFAULT_USER_ID, recordDate);
+    .get(currentUserId(DEFAULT_USER_ID), recordDate);
 
   res.status(201).json({ ok: true, data: decorate(saved, getCurrentUser()) });
 });
@@ -93,7 +94,7 @@ router.get('/body-metrics', (req, res) => {
        WHERE user_id = ? AND record_date BETWEEN ? AND ?
        ORDER BY record_date DESC LIMIT ?`
     )
-    .all(DEFAULT_USER_ID, from, to, limit);
+    .all(currentUserId(DEFAULT_USER_ID), from, to, limit);
   const user = getCurrentUser();
   res.json({ ok: true, data: rows.map((r) => decorate(r, user)) });
 });
@@ -104,7 +105,7 @@ router.get('/body-metrics/latest', (req, res) => {
     .prepare(
       'SELECT * FROM body_metrics WHERE user_id = ? ORDER BY record_date DESC LIMIT 1'
     )
-    .get(DEFAULT_USER_ID);
+    .get(currentUserId(DEFAULT_USER_ID));
   res.json({ ok: true, data: decorate(row, getCurrentUser()) });
 });
 
@@ -124,7 +125,7 @@ router.get('/body-metrics/trend', (req, res) => {
        WHERE user_id = ? AND record_date >= ?
        ORDER BY record_date ASC`
     )
-    .all(DEFAULT_USER_ID, todayLocal(start));
+    .all(currentUserId(DEFAULT_USER_ID), todayLocal(start));
 
   const user = getCurrentUser();
   const points = rows.map((r) => ({
@@ -146,7 +147,7 @@ router.get('/body-metrics/trend', (req, res) => {
 router.delete('/body-metrics/:id', (req, res) => {
   const info = db
     .prepare('DELETE FROM body_metrics WHERE id = ? AND user_id = ?')
-    .run(req.params.id, DEFAULT_USER_ID);
+    .run(req.params.id, currentUserId(DEFAULT_USER_ID));
   if (info.changes === 0) throw new ApiError(404, '记录不存在');
   res.json({ ok: true });
 });

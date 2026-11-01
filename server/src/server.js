@@ -4,7 +4,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
 import { DB_PATH } from './db.js';
-import { AUTH_ENABLED } from './lib/auth.js';
 
 const PORT = Number(process.env.PORT || 3001);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -30,7 +29,7 @@ const server = createApp().listen(PORT, '0.0.0.0', () => {
   console.log(`  健康检查:  http://127.0.0.1:${PORT}/api/health`);
   console.log(`  数据库:    ${DB_PATH}`);
   console.log(`  前端页面:  ${HAS_WEB_DIST ? `${WEB_DIST}（已同源托管，直接打开上面的地址即可）` : '未构建 → 开发模式请访问 Vite 的 5173'}`);
-  console.log(`  登录口令:  ${AUTH_ENABLED ? '已开启（APP_PASSWORD）' : '未设置 APP_PASSWORD，访问无需登录'}`);
+  console.log(`  登录方式:  多账号（用户名 + 密码），注册邀请码 ${process.env.REGISTER_CODE ? '已开启' : '未设置（任何人都能注册）'}`);
   console.log('--------------------------------------------------');
 });
 

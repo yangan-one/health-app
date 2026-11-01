@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db, DEFAULT_USER_ID } from '../db.js';
+import { currentUserId } from '../lib/context.js';
 import { ApiError, parseDate, parseNumber, requireObject } from '../lib/util.js';
 import { caloriesFromMet, avgSpeedKmh } from '../lib/met.js';
 
@@ -35,7 +36,7 @@ function resolveWeight(raw) {
        WHERE user_id = ? AND weight_kg IS NOT NULL
        ORDER BY record_date DESC LIMIT 1`
     )
-    .get(DEFAULT_USER_ID);
+    .get(currentUserId(DEFAULT_USER_ID));
   if (row?.weight_kg) return { weight: row.weight_kg, source: 'latest_body_metric' };
 
   throw new ApiError(400, '还没有体重数据，请先录入体重，或手动传入 weight_kg');
@@ -108,7 +109,7 @@ router.post('/exercises', (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
-      DEFAULT_USER_ID,
+      currentUserId(DEFAULT_USER_ID),
       recordDate,
       r.type.code,
       r.type.name,
@@ -143,14 +144,14 @@ router.get('/exercises', (req, res) => {
            WHERE user_id = ? AND record_date = ?
            ORDER BY id DESC`
         )
-        .all(DEFAULT_USER_ID, date)
+        .all(currentUserId(DEFAULT_USER_ID), date)
     : db
         .prepare(
           `SELECT * FROM exercise_records
            WHERE user_id = ? AND record_date BETWEEN ? AND ?
            ORDER BY record_date DESC, id DESC`
         )
-        .all(DEFAULT_USER_ID, from, to);
+        .all(currentUserId(DEFAULT_USER_ID), from, to);
 
   const total = rows.reduce((s, r) => s + r.calories_burned, 0);
   res.json({
@@ -169,7 +170,7 @@ router.get('/exercises', (req, res) => {
 router.delete('/exercises/:id', (req, res) => {
   const info = db
     .prepare('DELETE FROM exercise_records WHERE id = ? AND user_id = ?')
-    .run(req.params.id, DEFAULT_USER_ID);
+    .run(req.params.id, currentUserId(DEFAULT_USER_ID));
   if (info.changes === 0) throw new ApiError(404, '记录不存在');
   res.json({ ok: true });
 });

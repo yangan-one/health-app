@@ -28,9 +28,12 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  // 登录（配了 APP_PASSWORD 才需要）
+  // 账号：多账号模式，每人一个用户名 + 密码
   authStatus: () => request('/auth/status'),
-  login: (password) => request('/auth/login', { method: 'POST', body: { password } }),
+  login: (username, password) =>
+    request('/auth/login', { method: 'POST', body: { username, password } }),
+  register: (username, password, code) =>
+    request('/auth/register', { method: 'POST', body: { username, password, code } }),
   logout: () => request('/auth/logout', { method: 'POST' }),
 
   health: () => request('/health'),

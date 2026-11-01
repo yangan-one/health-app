@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db, DEFAULT_USER_ID, getCurrentUser } from '../db.js';
+import { currentUserId } from '../lib/context.js';
 import { ApiError, todayLocal } from '../lib/util.js';
 import { shapeProfile } from './profile.js';
 import { publicAiConfig } from '../lib/ai.js';
@@ -64,7 +65,7 @@ router.get('/export', (req, res, next) => {
       const user = getCurrentUser();
       const dietRecords = db
         .prepare('SELECT * FROM diet_records WHERE user_id = ? ORDER BY record_date ASC, id ASC')
-        .all(DEFAULT_USER_ID);
+        .all(currentUserId(DEFAULT_USER_ID));
       const itemsStmt = db.prepare(
         'SELECT * FROM diet_record_items WHERE diet_record_id = ? ORDER BY id ASC'
       );
@@ -76,10 +77,10 @@ router.get('/export', (req, res, next) => {
         profile: shapeProfile(user),
         body_metrics: db
           .prepare('SELECT * FROM body_metrics WHERE user_id = ? ORDER BY record_date ASC')
-          .all(DEFAULT_USER_ID),
+          .all(currentUserId(DEFAULT_USER_ID)),
         exercise_records: db
           .prepare('SELECT * FROM exercise_records WHERE user_id = ? ORDER BY record_date ASC, id ASC')
-          .all(DEFAULT_USER_ID),
+          .all(currentUserId(DEFAULT_USER_ID)),
         diet_records: dietRecords.map((r) => ({ ...r, items: itemsStmt.all(r.id) })),
         // 导出里也不带明文 Key
         settings: { ai: publicAiConfig() },
@@ -96,7 +97,7 @@ router.get('/export', (req, res, next) => {
       if (!conf) {
         throw new ApiError(400, `table 只能是: ${Object.keys(CSV_TABLES).join(' / ')}`);
       }
-      const rows = db.prepare(conf.sql).all(DEFAULT_USER_ID);
+      const rows = db.prepare(conf.sql).all(currentUserId(DEFAULT_USER_ID));
       const csv = toCsv(rows, conf.columns);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${conf.file}-${date}.csv"`);
@@ -112,7 +113,7 @@ router.get('/export', (req, res, next) => {
 
 /** GET /api/export/summary → 导出前的数据量概览（前端用来显示条数） */
 router.get('/export/summary', (req, res) => {
-  const one = (sql) => db.prepare(sql).get(DEFAULT_USER_ID)?.n ?? 0;
+  const one = (sql) => db.prepare(sql).get(currentUserId(DEFAULT_USER_ID))?.n ?? 0;
   res.json({
     ok: true,
     data: {

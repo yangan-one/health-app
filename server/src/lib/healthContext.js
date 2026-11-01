@@ -1,4 +1,5 @@
 import { db, DEFAULT_USER_ID, getCurrentUser } from '../db.js';
+import { currentUserId } from './context.js';
 import { round, todayLocal } from './util.js';
 import {
   ageFromBirthDate,
@@ -64,7 +65,7 @@ export function buildHealthContext({ date = todayLocal() } = {}) {
        WHERE user_id = ? AND weight_kg IS NOT NULL AND record_date <= ?
        ORDER BY record_date DESC LIMIT 1`
     )
-    .get(DEFAULT_USER_ID, date);
+    .get(currentUserId(DEFAULT_USER_ID), date);
 
   const weight = latest?.weight_kg ?? null;
   const height = user.height_cm ?? null;
@@ -106,7 +107,7 @@ export function buildHealthContext({ date = todayLocal() } = {}) {
        WHERE user_id = ? AND record_date <= ?
        ORDER BY record_date DESC LIMIT 1`
     )
-    .get(DEFAULT_USER_ID, date);
+    .get(currentUserId(DEFAULT_USER_ID), date);
 
   if (measures) {
     const parts = [];
@@ -136,7 +137,7 @@ export function buildHealthContext({ date = todayLocal() } = {}) {
        WHERE user_id = ? AND record_date >= date(?, '-14 days') AND record_date <= ?
        ORDER BY record_date ASC`
     )
-    .all(DEFAULT_USER_ID, date, date)
+    .all(currentUserId(DEFAULT_USER_ID), date, date)
     .filter((r) => r.weight_kg != null || r.waist_cm != null || r.body_fat_pct != null);
 
   if (trend.length >= 2) {
@@ -157,7 +158,7 @@ export function buildHealthContext({ date = todayLocal() } = {}) {
   const todayRow =
     db
       .prepare('SELECT * FROM v_daily_summary WHERE user_id = ? AND record_date = ?')
-      .get(DEFAULT_USER_ID, date) ?? null;
+      .get(currentUserId(DEFAULT_USER_ID), date) ?? null;
 
   const suggested = suggestCalorieGoal(tdee, goalType);
   const goalCalories = user.daily_calorie_goal || suggested || 1800;
@@ -204,7 +205,7 @@ export function buildHealthContext({ date = todayLocal() } = {}) {
       `SELECT meal_type, total_calories FROM diet_records
        WHERE user_id = ? AND record_date = ? AND status = 'done' ORDER BY id ASC`
     )
-    .all(DEFAULT_USER_ID, date);
+    .all(currentUserId(DEFAULT_USER_ID), date);
   if (todayMeals.length) {
     lines.push(
       '今日餐次：' +
@@ -219,7 +220,7 @@ export function buildHealthContext({ date = todayLocal() } = {}) {
       `SELECT exercise_type_name, duration_min, distance_km, calories_burned
        FROM exercise_records WHERE user_id = ? AND record_date = ? ORDER BY id ASC`
     )
-    .all(DEFAULT_USER_ID, date);
+    .all(currentUserId(DEFAULT_USER_ID), date);
   if (todayExercise.length) {
     lines.push(
       '今日运动：' +
@@ -241,7 +242,7 @@ export function buildHealthContext({ date = todayLocal() } = {}) {
        WHERE user_id = ? AND record_date < ? AND record_date >= date(?, '-7 days')
        ORDER BY record_date DESC LIMIT 3`
     )
-    .all(DEFAULT_USER_ID, date, date);
+    .all(currentUserId(DEFAULT_USER_ID), date, date);
 
   if (recent.length) {
     lines.push('');
@@ -262,7 +263,7 @@ export function buildHealthContext({ date = todayLocal() } = {}) {
        WHERE user_id = ? AND record_date < ? AND record_date >= date(?, '-7 days')
        GROUP BY exercise_type_name ORDER BY kcal DESC`
     )
-    .all(DEFAULT_USER_ID, date, date);
+    .all(currentUserId(DEFAULT_USER_ID), date, date);
 
   if (recentExercise.length) {
     const totalKcal = recentExercise.reduce((s, e) => s + (e.kcal ?? 0), 0);

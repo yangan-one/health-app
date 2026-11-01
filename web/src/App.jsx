@@ -12,15 +12,27 @@ import { api } from './api/client.js';
 
 export default function App() {
   // loading：正在问后端要不要登录；required：后端设了 APP_PASSWORD；authed：Cookie 还有效
-  const [auth, setAuth] = useState({ loading: true, required: false, authed: true });
+  const [auth, setAuth] = useState({
+    loading: true,
+    required: false,
+    authed: true,
+    registerCodeRequired: false,
+    user: null,
+  });
 
   const check = useCallback(async () => {
     try {
       const { data } = await api.authStatus();
-      setAuth({ loading: false, required: !!data.required, authed: !!data.authed });
+      setAuth({
+        loading: false,
+        required: !!data.required,
+        authed: !!data.authed,
+        registerCodeRequired: !!data.register_code_required,
+        user: data.user || null,
+      });
     } catch {
       // 后端没启动时不要卡在登录页，让各页面自己显示「无法连接后端」
-      setAuth({ loading: false, required: false, authed: true });
+      setAuth({ loading: false, required: false, authed: true, registerCodeRequired: false, user: null });
     }
   }, []);
 
@@ -30,7 +42,8 @@ export default function App() {
 
   // 任何接口返回 401（Cookie 过期 / 口令被改）→ 立刻回登录页
   useEffect(() => {
-    const onExpired = () => setAuth({ loading: false, required: true, authed: false });
+    const onExpired = () =>
+      setAuth((prev) => ({ ...prev, loading: false, required: true, authed: false, user: null }));
     window.addEventListener('auth:expired', onExpired);
     return () => window.removeEventListener('auth:expired', onExpired);
   }, []);
@@ -49,7 +62,7 @@ export default function App() {
   if (auth.required && !auth.authed) {
     return (
       <div className="min-h-full bg-slate-50 text-slate-900">
-        <Login onSuccess={check} />
+        <Login onSuccess={check} registerCodeRequired={auth.registerCodeRequired} />
       </div>
     );
   }

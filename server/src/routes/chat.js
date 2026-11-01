@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db, DEFAULT_USER_ID } from '../db.js';
+import { currentUserId } from '../lib/context.js';
 import { ApiError, parseDate, requireObject, todayLocal } from '../lib/util.js';
 import { buildHealthContext } from '../lib/healthContext.js';
 import { buildChatMessages, suggestQuestions } from '../lib/chatPrompt.js';
@@ -15,7 +16,7 @@ function getConversation(id) {
   if (!Number.isInteger(convId) || convId <= 0) throw new ApiError(400, '会话 id 不合法');
   const row = db
     .prepare('SELECT * FROM ai_conversations WHERE id = ? AND user_id = ?')
-    .get(convId, DEFAULT_USER_ID);
+    .get(convId, currentUserId(DEFAULT_USER_ID));
   if (!row) throw new ApiError(404, '会话不存在');
   return row;
 }
@@ -73,7 +74,7 @@ router.get('/chat/conversations', (_req, res) => {
        WHERE c.user_id = ?
        ORDER BY c.id DESC`
     )
-    .all(DEFAULT_USER_ID)
+    .all(currentUserId(DEFAULT_USER_ID))
     .map((r) => ({
       id: r.id,
       title: r.title || '新的对话',
@@ -91,7 +92,7 @@ router.post('/chat/conversations', (req, res, next) => {
     const title = typeof body.title === 'string' ? body.title.trim().slice(0, 40) : '';
     const info = db
       .prepare('INSERT INTO ai_conversations (user_id, title) VALUES (?, ?)')
-      .run(DEFAULT_USER_ID, title || null);
+      .run(currentUserId(DEFAULT_USER_ID), title || null);
     const conv = db
       .prepare('SELECT * FROM ai_conversations WHERE id = ?')
       .get(Number(info.lastInsertRowid));

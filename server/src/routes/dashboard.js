@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db, DEFAULT_USER_ID, getCurrentUser } from '../db.js';
+import { currentUserId } from '../lib/context.js';
 import { parseDate, round } from '../lib/util.js';
 import {
   computeBmi,
@@ -46,7 +47,7 @@ router.get('/dashboard', (req, res) => {
   const row =
     db
       .prepare('SELECT * FROM v_daily_summary WHERE user_id = ? AND record_date = ?')
-      .get(DEFAULT_USER_ID, date) ?? ZERO;
+      .get(currentUserId(DEFAULT_USER_ID), date) ?? ZERO;
 
   const exercises = db
     .prepare(
@@ -55,7 +56,7 @@ router.get('/dashboard', (req, res) => {
        WHERE user_id = ? AND record_date = ?
        ORDER BY id DESC`
     )
-    .all(DEFAULT_USER_ID, date);
+    .all(currentUserId(DEFAULT_USER_ID), date);
 
   const meals = db
     .prepare(
@@ -64,7 +65,7 @@ router.get('/dashboard', (req, res) => {
        WHERE user_id = ? AND record_date = ? AND status = 'done'
        ORDER BY id ASC`
     )
-    .all(DEFAULT_USER_ID, date);
+    .all(currentUserId(DEFAULT_USER_ID), date);
 
   const latest = db
     .prepare(
@@ -72,7 +73,7 @@ router.get('/dashboard', (req, res) => {
        WHERE user_id = ? AND weight_kg IS NOT NULL
        ORDER BY record_date DESC LIMIT 1`
     )
-    .get(DEFAULT_USER_ID);
+    .get(currentUserId(DEFAULT_USER_ID));
 
   const weekAgo = db
     .prepare(
@@ -80,7 +81,7 @@ router.get('/dashboard', (req, res) => {
        WHERE user_id = ? AND weight_kg IS NOT NULL AND record_date <= date(?, '-7 days')
        ORDER BY record_date DESC LIMIT 1`
     )
-    .get(DEFAULT_USER_ID, date);
+    .get(currentUserId(DEFAULT_USER_ID), date);
 
   // 目标热量：用户在「我的」页填的优先；没填就按 BMR/TDEE + 目标类型推荐
   const bmr = computeBmr({

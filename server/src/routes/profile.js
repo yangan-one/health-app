@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db, DEFAULT_USER_ID, getCurrentUser } from '../db.js';
+import { currentUserId } from '../lib/context.js';
 import { ApiError, parseNumber, requireObject } from '../lib/util.js';
 import {
   computeBmi,
@@ -29,7 +30,7 @@ export function shapeProfile(user) {
        WHERE user_id = ? AND weight_kg IS NOT NULL
        ORDER BY record_date DESC LIMIT 1`
     )
-    .get(DEFAULT_USER_ID);
+    .get(currentUserId(DEFAULT_USER_ID));
 
   const age = ageFromBirthDate(user.birth_date);
   const bmr = computeBmr({
@@ -124,7 +125,7 @@ router.put('/profile', (req, res) => {
 
   if (sets.length === 0) throw new ApiError(400, '没有需要更新的字段');
 
-  params.id = DEFAULT_USER_ID;
+  params.id = currentUserId(DEFAULT_USER_ID);
   db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = @id`).run(params);
 
   res.json({ ok: true, data: shapeProfile(getCurrentUser()) });

@@ -3,9 +3,10 @@ import cors from 'cors';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DB_PATH, DEFAULT_USER_ID, DRIVER } from './db.js';
+import { DB_PATH, DRIVER, db } from './db.js';
 import { ApiError, todayLocal } from './lib/util.js';
-import { AUTH_ENABLED, isAuthed, isPublicPath, requireAuth } from './lib/auth.js';
+import { isPublicPath, readSession, requireAuth, revokeSession } from './lib/auth.js';
+import { runAsUser } from './lib/context.js';
 import { UPLOAD_DIR } from './lib/images.js';
 import authRouter from './routes/auth.js';
 import profileRouter from './routes/profile.js';
@@ -52,28 +53,46 @@ export function createApp() {
   // 登录相关接口（未登录也能访问）
   app.use('/api', authRouter);
 
-  // 登录闸门：只保护「数据」——/api/* 与 /uploads/*
-  // 页面外壳（index.html、js/css、manifest、图标）必须是公开的，否则登录页自己都加载不出来。
+  /**
+   * 登录闸门 + 用户上下文。
+   *
+   * 关键点：只保护「数据」——/api/* 与 /uploads/*。
+   * 页面外壳（index.html、js/css、manifest、图标）必须公开，否则登录页自己都加载不出来。
+   *
+   * 通过检查后把 userId 放进 AsyncLocalStorage，业务查询统一走 currentUserId()，
+   * 这样每个账号只能看到自己的数据。
+   */
   app.use((req, res, next) => {
-    if (!AUTH_ENABLED) return next();
+    const session = readSession(req);
     const p = req.path;
     const needsAuth = (p.startsWith('/api/') && !isPublicPath(p)) || p.startsWith('/uploads/');
-    if (!needsAuth) return next();
-    return requireAuth(req, res, next);
+
+    if (!needsAuth) {
+      return session ? runAsUser(session.userId, next) : next();
+    }
+    if (!session) return requireAuth(req, res);
+
+    const exists = db.prepare('SELECT id FROM users WHERE id = ?').get(session.userId);
+    if (!exists) {
+      revokeSession(req, res);
+      return requireAuth(req, res);
+    }
+    req.userId = session.userId;
+    return runAsUser(session.userId, next);
   });
 
   app.get('/api/health', (req, res) => {
-    const authed = isAuthed(req);
+    const session = readSession(req);
     res.json({
       ok: true,
       service: 'health-app-server',
-      version: '0.6.0',
+      version: '0.7.0',
       sqlite_driver: DRIVER,
-      auth_enabled: AUTH_ENABLED,
+      auth_enabled: true,
+      auth_mode: 'multi-user',
       web_dist: HAS_WEB_DIST,
-      // 只有通过鉴权才回数据库路径，避免公网泄漏服务器目录结构
-      ...(authed ? { db_path: DB_PATH } : {}),
-      user_id: DEFAULT_USER_ID,
+      // 只有登录后才回数据库路径，避免公网泄漏服务器目录结构
+      ...(session ? { db_path: DB_PATH, user_id: session.userId } : {}),
       today: todayLocal(),
       server_time: new Date().toISOString(),
     });
