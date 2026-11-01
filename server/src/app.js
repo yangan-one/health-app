@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { DB_PATH, DEFAULT_USER_ID, DRIVER } from './db.js';
 import { ApiError, todayLocal } from './lib/util.js';
 import { AUTH_ENABLED, isAuthed, isPublicPath, requireAuth } from './lib/auth.js';
+import { UPLOAD_DIR } from './lib/images.js';
 import authRouter from './routes/auth.js';
 import profileRouter from './routes/profile.js';
 import bodyMetricsRouter from './routes/bodyMetrics.js';
@@ -88,7 +89,7 @@ export function createApp() {
   app.use('/api', chatRouter);
   app.use('/api', adminRouter);
 
-  app.use('/uploads', express.static(path.join(SERVER_DIR, 'uploads')));
+  app.use('/uploads', express.static(UPLOAD_DIR));
 
   // 前端构建产物：资源带 hash 可长缓存，index.html 不缓存
   if (HAS_WEB_DIST) {

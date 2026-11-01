@@ -64,7 +64,7 @@ npm run dev          # http://127.0.0.1:5173
 
 **只跑一个端口（生产模式 / 部署）**：先 `cd health-app/web && npm run build`，再 `cd ../server && npm start`，然后直接开 <http://127.0.0.1:3001/>。后端会自动托管 `web/dist`，页面和接口同源，不需要再开 Vite。
 
-**要出门也能用**：见 [`DEPLOY.md`](DEPLOY.md)（推 GitHub → 部署到 Zeabur → 免费 HTTPS 域名 + 手机添加到主屏幕）。
+**要出门也能用**：见 [`DEPLOY.md`](DEPLOY.md)（推 GitHub → Action 自动构建镜像 → ClawCloud Run 跑容器 → 免费 HTTPS 域名 + 手机添加到主屏幕）。
 
 ## 登录口令（部署到公网必读）
 
@@ -116,7 +116,7 @@ AI_VISION_API_KEY=
 
 ```
 health-app/
-├── DEPLOY.md                  # 部署到云端（GitHub + Zeabur）的完整步骤
+├── DEPLOY.md                  # 部署到云端（GitHub Actions + ClawCloud Run）的完整步骤
 ├── Dockerfile                 # 云平台按这个构建（内含前端 build）
 ├── start.cmd                  # 本机一键启动（后端 + 前端 + 打开浏览器）
 ├── server/                    # 后端

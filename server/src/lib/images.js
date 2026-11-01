@@ -7,7 +7,10 @@ import { ApiError } from './util.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** server/uploads —— 由 app.js 以 /uploads 静态托管 */
-export const UPLOAD_DIR = path.resolve(__dirname, '..', '..', 'uploads');
+// 云平台一般只能挂一个持久卷，所以允许用 UPLOAD_DIR 把它指到同一个卷里
+export const UPLOAD_DIR = process.env.UPLOAD_DIR
+  ? path.resolve(process.env.UPLOAD_DIR)
+  : path.resolve(__dirname, '..', '..', 'uploads');
 
 const MAX_BYTES = 8 * 1024 * 1024; // 8MB，前端会先压到 1280px 宽，通常只有 200-400KB
 const EXT_BY_MIME = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
