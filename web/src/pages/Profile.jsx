@@ -518,9 +518,9 @@ export default function Profile() {
             <span className="text-right font-medium text-slate-700">
               {
                 {
-                  env: 'server/.env（AI_API_KEY）',
-                  'env:vision': 'server/.env（AI_VISION_API_KEY）',
-                  vision: '复用视觉 Key（server/.env）',
+                  env: '环境变量 AI_API_KEY',
+                  'env:vision': '环境变量 AI_VISION_API_KEY',
+                  vision: '复用视觉 Key（环境变量）',
                   db: '本地数据库',
                   'db:vision': '本地数据库（视觉）',
                 }[ai?.vision?.key_source ?? ai?.key_source] ?? '未配置'
@@ -529,11 +529,19 @@ export default function Profile() {
           </div>
         </div>
 
+        {ai?.vision?.env_key_invalid || ai?.env_key_invalid ? (
+          <p className="mt-2 rounded-xl bg-amber-50 p-2.5 text-[10px] leading-relaxed text-amber-700">
+            ⚠ 环境变量里的 Key 不可用（但这行不影响使用，只要数据库里存了有效 Key）：
+            {ai?.vision?.env_key_invalid ?? ai?.env_key_invalid}
+          </p>
+        ) : null}
+
         <p className="mt-2.5 rounded-xl bg-slate-50 p-2.5 text-[10px] leading-relaxed text-slate-500">
-          Key 全部在 <code className="rounded bg-white px-1">health-app/server/.env</code> 里配：
+          Key 在服务器的 <code className="rounded bg-white px-1">.env</code> 或云平台的「环境变量」里配：
           拍照识别填 <code className="rounded bg-white px-1">AI_VISION_MODEL</code> 与{' '}
-          <code className="rounded bg-white px-1">AI_VISION_API_KEY</code>。保存文件后必须重启后端（
-          <code className="rounded bg-white px-1">npm start</code>）才生效，前端不用再填任何东西。
+          <code className="rounded bg-white px-1">AI_VISION_API_KEY</code>
+          （只允许英文字母、数字和符号，不要粘中文说明）。改完要重启后端 / 重启云上应用才生效，
+          前端不用填任何东西。
         </p>
 
         <button

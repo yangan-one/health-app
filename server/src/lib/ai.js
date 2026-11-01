@@ -2,6 +2,7 @@ import { deflateSync } from 'node:zlib';
 import { db, DEFAULT_USER_ID } from '../db.js';
 import { currentUserId } from './context.js';
 import { ApiError } from './util.js';
+import { sanitizeApiKey, describeKeyProblem } from './apiKey.js';
 
 /** app_settings 里用到的键 */
 export const SETTING_KEYS = {
@@ -82,8 +83,10 @@ export function setSetting(key, value) {
 
 /** 读文本模型的原始配置（不含「复用视觉 Key」的兜底），避免 getVisionConfig ↔ getAiConfig 循环调用 */
 function textConfigRaw() {
-  const dbKey = getSetting(SETTING_KEYS.apiKey);
-  const envKey = process.env.AI_API_KEY || '';
+  const dbKeyRes = sanitizeApiKey(getSetting(SETTING_KEYS.apiKey));
+  const dbKey = dbKeyRes.value;
+  const envKeyRes = sanitizeApiKey(process.env.AI_API_KEY);
+  const envKey = envKeyRes.value;
   const dbBase = getSetting(SETTING_KEYS.baseUrl);
   const envBase = process.env.AI_BASE_URL || '';
   const dbModel = getSetting(SETTING_KEYS.model);
@@ -95,6 +98,11 @@ function textConfigRaw() {
     explicit_base: explicitBase,
     base_url: (explicitBase || AI_DEFAULTS.base_url).replace(/\/+$/, ''),
     model_raw: dbModel || envModel || '',
+    // 环境变量里填了不可用的 Key（典型：原样粘了中文占位说明）时，这里带一句人话
+    env_key_invalid:
+      envKeyRes.reason && envKeyRes.reason !== 'empty'
+        ? describeKeyProblem(envKeyRes, { name: 'AI_API_KEY' })
+        : null,
   };
 }
 
@@ -125,8 +133,9 @@ export function getVisionConfig() {
   const text = textConfigRaw();
   const dbVisionModel = getSetting(SETTING_KEYS.visionModel);
   const model = dbVisionModel || process.env.AI_VISION_MODEL || AI_DEFAULTS.vision_model;
-  const dbVisionKey = getSetting(SETTING_KEYS.visionApiKey);
-  const envVisionKey = process.env.AI_VISION_API_KEY || '';
+  const dbVisionKey = sanitizeApiKey(getSetting(SETTING_KEYS.visionApiKey)).value;
+  const envVisionKeyRes = sanitizeApiKey(process.env.AI_VISION_API_KEY);
+  const envVisionKey = envVisionKeyRes.value;
   const dedicatedKey = dbVisionKey || envVisionKey;
   const apiKey = dedicatedKey || text.api_key;
   const baseUrl =
@@ -147,6 +156,11 @@ export function getVisionConfig() {
     configured: Boolean(apiKey && model),
     // 离线演示：环境变量（临时）或设置里勾选（持久），用于没有 Key 时先把链路跑通
     fake: process.env.VISION_FAKE === '1' || getSetting(SETTING_KEYS.visionFake) === '1',
+    // 视觉 Key 的环境变量填坏了（常见：粘了中文占位符）时给出可读原因
+    env_key_invalid:
+      envVisionKeyRes.reason && envVisionKeyRes.reason !== 'empty'
+        ? describeKeyProblem(envVisionKeyRes, { name: 'AI_VISION_API_KEY' })
+        : null,
   };
 }
 
@@ -239,6 +253,8 @@ export function publicAiConfig() {
     model: cfg.model,
     defaults: AI_DEFAULTS,
     env_key_detected: Boolean(process.env.AI_API_KEY),
+    // 环境变量里那个 Key 到底能不能用（null = 没问题）
+    env_key_invalid: textConfigRaw().env_key_invalid,
     // true = 没单独配文本 Key，直接复用了视觉那一套（同一家厂商时很常见）
     derived_from_vision: cfg.derived_from_vision,
     vision: {
@@ -252,6 +268,7 @@ export function publicAiConfig() {
       key_source: vision.key_source,
       missing: !vision.api_key ? 'key' : !vision.model ? 'model' : null,
       env_key_detected: Boolean(process.env.AI_VISION_API_KEY),
+      env_key_invalid: vision.env_key_invalid,
     },
     vision_presets: VISION_PRESETS,
     fake_mode: vision.fake,
@@ -268,7 +285,8 @@ export async function testAiConnection(override = {}, { timeoutMs = 8000 } = {})
   const baseUrl = (override.base_url || cfg.base_url || AI_DEFAULTS.base_url).replace(/\/+$/, '');
 
   if (!apiKey) {
-    return { ok: false, reason: 'missing_key', message: '还没有配置 API Key' };
+    const problem = textConfigRaw().env_key_invalid;
+    return { ok: false, reason: 'missing_key', message: problem ?? '还没有配置 API Key' };
   }
 
   const started = Date.now();
@@ -384,7 +402,11 @@ export async function testVisionConnection(override = {}, { timeoutMs = 20000 } 
   const model = override.model || cfg.model;
 
   if (!apiKey) {
-    return { ok: false, reason: 'missing_key', message: '还没有配置视觉模型的 API Key（AI_VISION_API_KEY）' };
+    return {
+      ok: false,
+      reason: 'missing_key',
+      message: cfg.env_key_invalid ?? '还没有配置视觉模型的 API Key（AI_VISION_API_KEY）',
+    };
   }
   if (!model) {
     return { ok: false, reason: 'missing_model', message: '还没有配置视觉模型名（AI_VISION_MODEL）' };
@@ -477,6 +499,10 @@ export async function chatStream({
 } = {}) {
   const cfg = getAiConfig();
   if (!cfg.api_key) {
+    const problem = textConfigRaw().env_key_invalid;
+    if (problem) {
+      throw new ApiError(400, `${problem}（这是环境变量 AI_API_KEY 的问题）`);
+    }
     throw new ApiError(
       400,
       '服务端还没有配置文本模型的 API Key。请在 health-app/server/.env 里填 AI_API_KEY；' +

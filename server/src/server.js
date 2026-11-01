@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
 import { DB_PATH } from './db.js';
+import { sanitizeApiKey, describeKeyProblem } from './lib/apiKey.js';
 
 const PORT = Number(process.env.PORT || 3001);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -21,6 +22,20 @@ function lanAddresses() {
   return out;
 }
 
+/**
+ * 启动时检查环境变量里的 Key 是不是干净的 ASCII。
+ * 云平台控制台最容易出的错：把「填 49 字符的 Key 到这里」这类说明文字
+ * 原样粘进了变量值，运行时只在发请求那一刻炸出一句 ByteString 报错。
+ */
+function keyWarnings() {
+  const out = [];
+  for (const name of ['AI_API_KEY', 'AI_VISION_API_KEY']) {
+    const res = sanitizeApiKey(process.env[name]);
+    if (res.reason && res.reason !== 'empty') out.push(describeKeyProblem(res, { name }));
+  }
+  return out;
+}
+
 const server = createApp().listen(PORT, '0.0.0.0', () => {
   console.log('--------------------------------------------------');
   console.log('  个人健康管理 · 服务已启动');
@@ -30,6 +45,7 @@ const server = createApp().listen(PORT, '0.0.0.0', () => {
   console.log(`  数据库:    ${DB_PATH}`);
   console.log(`  前端页面:  ${HAS_WEB_DIST ? `${WEB_DIST}（已同源托管，直接打开上面的地址即可）` : '未构建 → 开发模式请访问 Vite 的 5173'}`);
   console.log(`  登录方式:  多账号（用户名 + 密码），注册邀请码 ${process.env.REGISTER_CODE ? '已开启' : '未设置（任何人都能注册）'}`);
+  for (const line of keyWarnings()) console.log(`  注意:      ${line}`);
   console.log('--------------------------------------------------');
 });
 

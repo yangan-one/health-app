@@ -257,7 +257,8 @@ export async function analyzeFoodImage(imageDataUrl, { mealType = null, hint = '
   if (!cfg.api_key) {
     throw new ApiError(
       400,
-      '服务端还没有配置视觉模型的 API Key。请在 health-app/server/.env 里填 AI_VISION_API_KEY（视觉专用）或 AI_API_KEY，保存后重启后端（npm start）。'
+      cfg.env_key_invalid ??
+        '服务端还没有配置视觉模型的 API Key。请在 health-app/server/.env 里填 AI_VISION_API_KEY（视觉专用）或 AI_API_KEY，保存后重启后端（npm start）。'
     );
   }
   if (!cfg.model) {

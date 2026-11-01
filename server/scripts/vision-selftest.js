@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { parseVisionResponse } from '../src/lib/vision.js';
 import { matchFood, macrosForWeight, resolveItemNutrition, sumItems } from '../src/lib/foods.js';
 import { listFoods } from '../src/lib/foods.js';
+import { sanitizeApiKey, describeKeyProblem } from '../src/lib/apiKey.js';
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
@@ -146,6 +147,56 @@ test('营养库至少 58 条且有别名', () => {
   const foods = listFoods();
   assert.ok(foods.length >= 58, `只有 ${foods.length} 条`);
   assert.ok(foods.filter((f) => f.alias).length >= 10, '别名太少');
+});
+
+// ---------- API Key 清洗（云端环境变量最容易出错的地方）----------
+test('干净的 Key 原样通过', () => {
+  const r = sanitizeApiKey('9a62f0d7c1b24e58a3fd0c9e6b17d4a2f8e35c60ab4d');
+  assert.equal(r.reason, null);
+  assert.ok(r.value.startsWith('9a62f'));
+});
+
+test('首尾空白、BOM、被一起粘进来的引号会被清掉', () => {
+  const r = sanitizeApiKey('\uFEFF  "9a62f0d7c1b24e58a3fd0c9e6b17d4a2f8e35c60"  ');
+  assert.equal(r.reason, null);
+  assert.equal(r.value, '9a62f0d7c1b24e58a3fd0c9e6b17d4a2f8e35c60');
+});
+
+test('中文占位符被判定为不可用，并指出第几个字符坏了', () => {
+  const r = sanitizeApiKey('【本机 server/.env 里那行 49 字符的 Key】');
+  assert.equal(r.value, '');
+  assert.equal(r.reason, 'invalid_char');
+  assert.equal(r.char, '【');
+  assert.equal(r.position, 1);
+  // 这正是线上那条报错的来源：Unicode 12304 = 全角左书中括号
+  assert.equal(r.code, 12304);
+});
+
+test('中间混入全角字符也能定位（模拟半截中文说明）', () => {
+  const r = sanitizeApiKey('sk-abc12（请填真实Key）');
+  assert.equal(r.reason, 'invalid_char');
+  assert.equal(r.char, '（');
+  assert.equal(r.position, 9);
+});
+
+test('太短的 Key 判为没复制完整', () => {
+  const r = sanitizeApiKey('sk-123');
+  assert.equal(r.value, '');
+  assert.equal(r.reason, 'too_short');
+});
+
+test('空值与纯空白判为空', () => {
+  assert.equal(sanitizeApiKey('').reason, 'empty');
+  assert.equal(sanitizeApiKey('   ').reason, 'empty');
+  assert.equal(sanitizeApiKey(undefined).reason, 'empty');
+});
+
+test('错误提示会带上变量名且能看懂', () => {
+  const r = sanitizeApiKey('【填你的 Key】');
+  const text = describeKeyProblem(r, { name: 'AI_VISION_API_KEY' });
+  assert.ok(text.includes('AI_VISION_API_KEY'), text);
+  assert.ok(text.includes('【'), text);
+  assert.ok(!/ByteString|12304/.test(text), '不该把底层报错抛给用户');
 });
 
 let passed = 0;
