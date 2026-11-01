@@ -304,10 +304,9 @@ export default function Diet() {
 
         {!visionReady && !fakeMode ? (
           <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-700">
-            服务端还没配视觉模型：把 Key 填到 <code className="rounded bg-white/70 px-1">health-app/server/.env</code>{' '}
-            里的 <code className="rounded bg-white/70 px-1">AI_VISION_MODEL</code> 与{' '}
-            <code className="rounded bg-white/70 px-1">AI_VISION_API_KEY</code>，重启后端即可（先试{' '}
-            <code className="rounded bg-white/70 px-1">glm-4v-flash</code>）。
+            这台服务器的 AI 还没配置好（需要管理员填 <code className="rounded bg-white/70 px-1">AI_VISION_MODEL</code> 与{' '}
+            <code className="rounded bg-white/70 px-1">AI_VISION_API_KEY</code>，先试{' '}
+            <code className="rounded bg-white/70 px-1">glm-4v-flash</code>）。配好后所有账号都能拍照识别。
           </p>
         ) : null}
 

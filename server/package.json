@@ -1,6 +1,6 @@
 {
   "name": "health-app-server",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "private": true,
   "type": "module",
   "description": "个人健康管理应用 - 后端 API（Express + SQLite）",

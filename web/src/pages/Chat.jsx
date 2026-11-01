@@ -239,8 +239,8 @@ export default function Chat() {
 
       {!aiReady ? (
         <p className="mb-3 rounded-xl bg-amber-50 p-2.5 text-[11px] leading-relaxed text-amber-700">
-          文本模型还没配置。在 <code className="rounded bg-white px-1">health-app/server/.env</code> 里填{' '}
-          <code className="rounded bg-white px-1">AI_API_KEY</code> 后重启后端即可（如果已配视觉 Key，同一家厂商会自动复用）。
+          的 AI 服务还没配置好（需要管理员在服务器的 <code className="rounded bg-white px-1">.env</code> 或云平台环境变量里填{' '}
+          <code className="rounded bg-white px-1">AI_API_KEY</code>）。配好后所有人登录都能用，你自己不用填任何东西。
         </p>
       ) : null}
 

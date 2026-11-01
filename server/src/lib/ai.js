@@ -1,6 +1,5 @@
 import { deflateSync } from 'node:zlib';
 import { db, DEFAULT_USER_ID } from '../db.js';
-import { currentUserId } from './context.js';
 import { ApiError } from './util.js';
 import { sanitizeApiKey, describeKeyProblem } from './apiKey.js';
 
@@ -60,25 +59,31 @@ export const VISION_PRESETS = [
   },
 ];
 
+/**
+ * AI 配置（Key / 模型 / 接口地址）是**整个实例共用**的，不属于某个账号的数据。
+ * 所以这里固定用 DEFAULT_USER_ID 这一行来存：老板配一次，其他人登录后直接用，
+ * 否则每个新注册的账号都会看到「还没配置 API Key」（2026-11-01 实际踩到过）。
+ * 健康数据（体重、饮食、运动）仍然按各账号隔离，两者不要混为一谈。
+ */
 /** 读一条设置，没有就返回 null */
 export function getSetting(key) {
   const row = db
     .prepare('SELECT value FROM app_settings WHERE user_id = ? AND key = ?')
-    .get(currentUserId(DEFAULT_USER_ID), key);
+    .get(DEFAULT_USER_ID, key);
   return row?.value ?? null;
 }
 
 /** 写一条设置（空值等价于删除） */
 export function setSetting(key, value) {
   if (value === null || value === undefined || String(value).trim() === '') {
-    db.prepare('DELETE FROM app_settings WHERE user_id = ? AND key = ?').run(currentUserId(DEFAULT_USER_ID), key);
+    db.prepare('DELETE FROM app_settings WHERE user_id = ? AND key = ?').run(DEFAULT_USER_ID, key);
     return;
   }
   db.prepare(
     `INSERT INTO app_settings (user_id, key, value) VALUES (@user_id, @key, @value)
      ON CONFLICT (user_id, key) DO UPDATE SET value = excluded.value,
        updated_at = datetime('now', 'localtime')`
-  ).run({ user_id: currentUserId(DEFAULT_USER_ID), key, value: String(value).trim() });
+  ).run({ user_id: DEFAULT_USER_ID, key, value: String(value).trim() });
 }
 
 /** 读文本模型的原始配置（不含「复用视觉 Key」的兜底），避免 getVisionConfig ↔ getAiConfig 循环调用 */

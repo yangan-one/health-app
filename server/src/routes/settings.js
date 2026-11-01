@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { ApiError, requireObject } from '../lib/util.js';
+import { DEFAULT_USER_ID } from '../db.js';
+import { currentUserId } from '../lib/context.js';
 import {
   SETTING_KEYS,
   setSetting,
@@ -9,6 +11,16 @@ import {
 } from '../lib/ai.js';
 
 const router = Router();
+
+/**
+ * AI 配置（Key / 模型 / 接口地址）是实例级共享的，写的是主账号那一行，
+ * 所以只有主账号能改。否则任何一个注册用户都能把全站的 Key 换掉。
+ */
+function requireOwner() {
+  if (currentUserId(DEFAULT_USER_ID) !== DEFAULT_USER_ID) {
+    throw new ApiError(403, '只有主账号可以修改 AI 服务配置');
+  }
+}
 
 /** GET /api/settings → AI 配置（Key 一律脱敏） */
 router.get('/settings', (req, res) => {
@@ -21,6 +33,7 @@ router.get('/settings', (req, res) => {
  * 传空字符串 = 清除该条（回退到 .env / 默认值）
  */
 router.put('/settings/ai', (req, res) => {
+  requireOwner();
   const body = requireObject(req.body);
 
   if (body.api_key !== undefined) {
