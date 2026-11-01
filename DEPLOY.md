@@ -28,12 +28,14 @@ GitHub 仓库 --(push 触发 Action)--> ghcr.io 镜像 --> ClawCloud 拉取运�
 | `NODE_ENV` | `production` | 关掉 CORS、开启同源托管与 `Secure` Cookie |
 | `PORT` | `3001` | 容器端口，必须和 Network 里填的一致 |
 | `TZ` | `Asia/Shanghai` | 否则「今天」会按 UTC 算，跨零点记录会错位 |
-| `APP_PASSWORD` | 自己定，**≥12 位** | 打开网页要输的口令；留空 = 不鉴权（公网上千万别留空） |
-| `SESSION_SECRET` | 64 位随机十六进制 | 换掉可强制所有设备重新登录 |
+| `OWNER_USERNAME` | `me` | 主账号用户名（历史数据都挂在它下面） |
+| `OWNER_PASSWORD` | 自己定，**≥12 位** | 主账号密码；云端首次启动时自动写入数据库 |
+| `REGISTER_CODE` | 自己定一串 | 别人注册时要填的邀请码；**留空 = 任何人都能注册** |
+| `SESSION_SECRET` | 64 位随机十六进制 | Cookie 签名密钥，换掉可强制所有设备重新登录 |
 | `DB_PATH` | `/app/server/data/health.db` | 放在持久卷里 |
 | `UPLOAD_DIR` | `/app/server/data/uploads` | 饭的照片也进同一个卷 |
 | `BACKUP_DIR` | `/app/server/data/backups` | `npm run backup` 的落点 |
-| `DEFAULT_USER_ID` | `1` | 单用户模式 |
+| `DEFAULT_USER_ID` | `1` | 历史数据的归属 id（主账号） |
 | `AI_VISION_BASE_URL` | `https://open.bigmodel.cn/api/paas/v4` | 智谱（也可换通义/OpenAI） |
 | `AI_VISION_MODEL` | `glm-4v-flash` | 拍照识别用的视觉模型 |
 | `AI_VISION_API_KEY` | 你的智谱 Key | 与本地 `.env` 里那个相同 |
@@ -87,7 +89,7 @@ GitHub 仓库 --(push 触发 Action)--> ghcr.io 镜像 --> ClawCloud 拉取运�
 ## 5. 打开网址、验收入口
 
 1. 在 `Network` 那一栏点 `Public Address`，形如 `https://xxxxxx.ap-northeast-1.clawcloudrun.com`
-2. 应该看到登录页「我的健康档案」→ 输 `APP_PASSWORD`
+2. 应该看到登录页「我的健康档案」→ 用 `OWNER_USERNAME` / `OWNER_PASSWORD` 登录（新用户点「注册」，填 `REGISTER_CODE`）
 3. 进来后确认三件事：
    - 概览页「今日还可摄入」有数字（说明数据库写通了）
    - `我的 → AI 服务状态` 显示「已配置」、视觉模型 `glm-4v-flash`
@@ -100,7 +102,7 @@ Invoke-WebRequest https://你的域名/api/health -UseBasicParsing | Select-Obje
 # 期望：{"ok":true,...,"version":"0.6.0","auth_enabled":true,"web_dist":true,...}
 ```
 
-`auth_enabled: true` 说明口令生效；如果为 `false`，回去检查 `APP_PASSWORD` 有没有真的存进环境变量。
+`auth_enabled: true` 且 `auth_mode: "multi-user"` 说明账号系统已生效；未登录时 `/api/dashboard` 应返回 401。
 
 ## 6. 把本地数据搬上去
 
@@ -162,7 +164,7 @@ npm.cmd run db:import -- ..\health-data-2026-10-31.json
 | 现象 | 原因 / 处理 |
 | --- | --- |
 | 打开是 502 / 一直转圈 | 容器没起来。看 `Logs`；常见是 `Image` 私有导致拉取失败，或端口填的跟 `PORT` 不一致 |
-| 页面能开但提示「无法连接后端」 | 前端被 SPA fallback 正常返回了，接口 401/500。多半是 `APP_PASSWORD` 没配对，先试 `输口令`重登 |
+| 页面能开但提示「无法连接后端」 | 前端被 SPA fallback 正常返回了，接口 401/500。多半是 Cookie 过期，重新登录即可 |
 | `/api/health` 里 `web_dist:false` | 镜像里没有 `web/dist`，说明 Dockerfile 第二阶段没复制成功——重新构建 |
 | 拍照识别报「还没有配置视觉模型的 API Key」 | 环境变量 `AI_VISION_API_KEY` 没存进去，改完必须 `Restart` |
 | 拍照识别报「模型名不存在 / 404」 | `AI_VISION_MODEL` 和 `AI_VISION_BASE_URL` 不是同一家的模型 |
@@ -172,7 +174,7 @@ npm.cmd run db:import -- ..\health-data-2026-10-31.json
 
 ## 12. 安全清单（公网必看）
 
-- `APP_PASSWORD` 必须是长口令，**不要**用本地那个 `1234`
+- `OWNER_PASSWORD` 必须是长口令，**不要**用本地那个 `1234`；`REGISTER_CODE` 一定要设，否则谁都能注册
 - `SESSION_SECRET` 用随机 64 位，不要留默认
 - 不要把自己 `.env` 推到 GitHub（`.gitignore` 已挡住；上传数据库这种事只用页面里的导入功能）
 - 泄露过 Key 就去控制台重置：智谱 Key 在智谱后台、GitHub PAT 在 GitHub 后台

@@ -66,21 +66,22 @@ npm run dev          # http://127.0.0.1:5173
 
 **要出门也能用**：见 [`DEPLOY.md`](DEPLOY.md)（推 GitHub → Action 自动构建镜像 → ClawCloud Run 跑容器 → 免费 HTTPS 域名 + 手机添加到主屏幕）。
 
-## 登录口令（部署到公网必读）
+## 多账号：每个人自己的数据（部署到公网必读）
 
-`server/.env` 里有三项控制登录：
+`server/.env` 里有这几项控制账号：
 
 ```ini
-APP_PASSWORD=xWNnnLGAYEPCv7EQ                  # 留空 = 关闭登录（只适合本机）
-SESSION_SECRET=8a77cfa72951013045969befeceb745b26f56833b114362df62fd1c7795d52f8
-NODE_ENV=development                            # 云端改 production
+OWNER_USERNAME=me
+OWNER_PASSWORD=1234          # 主账号密码，历史数据都挂在它下面
+REGISTER_CODE=health2026     # 别人注册要填的邀请码；留空 = 谁都能注册
+SESSION_SECRET=...           # Cookie 签名密钥，换掉 = 所有设备强制重新登录
 ```
 
-- 打开网页先输一次口令，之后 7 天免登录（签名 Cookie，不需要用户表）。
-- 连着输错 8 次会锁 10 分钟，防止别人在公网上暴力试。
+- 打开网页是登录页：老用户输用户名 + 密码；新朋友点「注册」，填邀请码即可开一个**独立的账号**。
+- **数据按账号隔离**：你的体重、围度、饮食照片、AI 对话，别人登录自己的账号看不到。
+- 登录状态存在签名 Cookie 里，30 天免登录；连着输错 10 次会锁 10 分钟，防止公网暴力试。
 - 页面外壳（HTML/JS/图标）是公开的，**数据和照片都要先登录**：`/api/*`、`/uploads/*` 未登录一律 401。
-- 改了 `APP_PASSWORD` 之后已登录的设备会全部掉线（`SESSION_SECRET` 不变也会掉，因为密钥默认从口令派生；想避免就单独设一个固定的 `SESSION_SECRET`）。
-
+- 升级前的老数据仍属于 `OWNER_USERNAME` 这个主账号，用它登录就能看到原来的记录。
 
 ## 配置 AI（`health-app/server/.env`）
 
@@ -204,8 +205,11 @@ kcal/min = MET × 3.5 × 体重(kg) / 200
 | POST | `/api/admin/import` | 导入导出的 JSON（网页「从备份导入」用的是它） |
 | GET | `/api/admin/backup` | 下载一个 `.db` 快照（VACUUM INTO） |
 | GET | `/api/admin/health-check` | 数据库体检（integrity + 各表条数） |
-| GET | `/api/auth/status` | 是否需要登录 / 当前是否已登录 |
+| GET | `/api/auth/status` | 当前是否已登录 / 是否要邀请码 / 当前用户 |
+| POST | `/api/auth/register` | 注册新账号（用户名 2-20 位、密码 ≥6 位、邀请码） |
 | POST | `/api/auth/login` `/logout` | 登录（带限速）/ 退出 |
+| POST | `/api/auth/password` | 修改自己的密码 |
+| GET | `/api/auth/me` | 当前登录用户信息 |
 
 统一响应：成功 `{ ok: true, data }`，失败 `{ ok: false, message, details }`。
 
