@@ -24,7 +24,7 @@ const TINY_PNG =
 const results = [];
 let createdIds = [];
 
-async function call(method, path, body) {
+async function call(method, path, body, attempt = 1) {
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
@@ -36,6 +36,14 @@ async function call(method, path, body) {
     json = JSON.parse(text);
   } catch {
     json = { raw: text.slice(0, 200) };
+  }
+  // 服务端给拍照识别加了冷却（默认 15 秒），冒烟脚本连续调用会撞上 429，
+  // 这不是功能失败：等冷却结束重试（最多 2 次）
+  if (res.status === 429 && json?.details?.retry_after && attempt <= 2) {
+    const waitMs = (Number(json.details.retry_after) + 1) * 1000;
+    console.log(`      （命中冷却，等 ${json.details.retry_after}s 后重试）`);
+    await new Promise((r) => setTimeout(r, waitMs));
+    return call(method, path, body, attempt + 1);
   }
   return { status: res.status, json };
 }

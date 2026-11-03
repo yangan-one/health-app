@@ -4,7 +4,7 @@ import EChart from '../components/EChart.jsx';
 import Card, { CardTitle } from '../components/Card.jsx';
 import { useFetch } from '../hooks/useFetch.js';
 import { api } from '../api/client.js';
-import { fmt, longDate, shortDate, signed, todayISO } from '../lib/format.js';
+import { fmt, longDate, todayISO } from '../lib/format.js';
 
 const MACROS = [
   { key: 'protein', label: '蛋白质', kcalPerG: 4, color: '#10b981' },
@@ -32,7 +32,6 @@ function StatTile({ label, value, unit, tone = 'slate' }) {
 export default function Dashboard() {
   const date = todayISO();
   const { data, loading, error, reload } = useFetch(() => api.dashboard(date), [date]);
-  const trend = useFetch(() => api.trend(30));
 
   const intake = data?.intake ?? { calories: 0, protein: 0, fat: 0, carbs: 0 };
   const goal = data?.goal ?? { calories: 1800, protein_g: 108, fat_g: 50, carbs_g: 252 };
@@ -76,57 +75,6 @@ export default function Dashboard() {
     [intake.protein, intake.fat, intake.carbs]
   );
 
-  const points = trend.data?.points ?? [];
-  const weightPoints = points.filter((p) => p.weight_kg !== null && p.weight_kg !== undefined);
-
-  const weightOption = useMemo(
-    () => ({
-      grid: { left: 4, right: 12, top: 12, bottom: 4, containLabel: true },
-      tooltip: {
-        trigger: 'axis',
-        valueFormatter: (v) => (v === null || v === undefined ? '--' : `${v} kg`),
-      },
-      xAxis: {
-        type: 'category',
-        data: weightPoints.map((p) => shortDate(p.date)),
-        axisLine: { lineStyle: { color: '#e2e8f0' } },
-        axisTick: { show: false },
-        axisLabel: { color: '#94a3b8', fontSize: 10, interval: 'auto' },
-      },
-      yAxis: {
-        type: 'value',
-        scale: true,
-        splitLine: { lineStyle: { color: '#f1f5f9' } },
-        axisLabel: { color: '#94a3b8', fontSize: 10 },
-      },
-      series: [
-        {
-          type: 'line',
-          smooth: true,
-          showSymbol: weightPoints.length <= 20,
-          symbolSize: 5,
-          data: weightPoints.map((p) => p.weight_kg),
-          lineStyle: { width: 2.5, color: '#10b981' },
-          itemStyle: { color: '#10b981' },
-          areaStyle: {
-            color: {
-              type: 'linear',
-              x: 0,
-              y: 0,
-              x2: 0,
-              y2: 1,
-              colorStops: [
-                { offset: 0, color: 'rgba(16,185,129,0.22)' },
-                { offset: 1, color: 'rgba(16,185,129,0.02)' },
-              ],
-            },
-          },
-        },
-      ],
-    }),
-    [weightPoints.length, points.length]
-  );
-
   if (loading && !data) {
     return (
       <div className="animate-pulse space-y-3">
@@ -155,7 +103,6 @@ export default function Dashboard() {
           type="button"
           onClick={() => {
             reload();
-            trend.reload();
           }}
           className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 active:bg-slate-100"
         >
@@ -281,77 +228,6 @@ export default function Dashboard() {
         )}
       </Card>
 
-      {/* 体重趋势 */}
-      <Card className="p-4">
-        <CardTitle
-          extra={
-            body.delta_7d !== null && body.delta_7d !== undefined ? (
-              <span className={body.delta_7d > 0 ? 'text-amber-600' : 'text-emerald-600'}>
-                7 天 {signed(body.delta_7d)} kg
-              </span>
-            ) : null
-          }
-        >
-          体重趋势
-          {body.latest_weight_kg ? (
-            <span className="ml-1.5 text-xs font-normal text-slate-400">
-              当前 {fmt(body.latest_weight_kg, 1)} kg
-            </span>
-          ) : null}
-        </CardTitle>
-
-        {weightPoints.length >= 2 ? (
-          <EChart option={weightOption} height={170} />
-        ) : (
-          <div className="flex h-[130px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 text-center">
-            <p className="text-xs text-slate-400">
-              {weightPoints.length === 1 ? '再记录一次就能看到趋势' : '还没有体重数据'}
-            </p>
-            <Link to="/body" className="mt-2 text-xs font-medium text-emerald-600">
-              去记录 →
-            </Link>
-          </div>
-        )}
-
-        {body.bmi ? (
-          <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2.5 text-xs text-slate-500">
-            <span>
-              BMI <span className="font-medium text-slate-700 tabular">{fmt(body.bmi, 1)}</span>
-            </span>
-            <span>最近记录 {body.latest_date || '--'}</span>
-          </div>
-        ) : null}
-      </Card>
-
-      {/* 今日运动 */}
-      <Card className="p-4">
-        <CardTitle extra={`${burn.count} 次`}>今日运动</CardTitle>
-        {data?.exercises?.length ? (
-          <ul className="divide-y divide-slate-100">
-            {data.exercises.map((e) => (
-              <li key={e.id} className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
-                <div className="min-w-0">
-                  <p className="truncate text-sm text-slate-700">{e.exercise_type_name}</p>
-                  <p className="text-[11px] text-slate-400">
-                    {fmt(e.duration_min)} 分钟
-                    {e.distance_km ? ` · ${fmt(e.distance_km, 2)} km` : ''}
-                  </p>
-                </div>
-                <span className="shrink-0 text-sm font-medium text-emerald-600 tabular">
-                  {fmt(e.calories_burned)} kcal
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-6 text-center">
-            <p className="text-xs text-slate-400">今天还没有运动记录</p>
-            <Link to="/exercise" className="mt-2 text-xs font-medium text-emerald-600">
-              记录一次 →
-            </Link>
-          </div>
-        )}
-      </Card>
     </div>
   );
 }

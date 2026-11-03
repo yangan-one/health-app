@@ -93,9 +93,69 @@ export default function Diet() {
   const [deletingId, setDeletingId] = useState(null);
   // 识别冷却倒计时（秒）：训练用户别狂点，真正的拦截在服务端
   const [cooldown, setCooldown] = useState(0);
+  // 常见食物热量速查（营养库全量，首次打开时才拉）
+  const [foodsOpen, setFoodsOpen] = useState(false);
+  const [foodQuery, setFoodQuery] = useState('');
+  const [foodList, setFoodList] = useState(null);
+  const [foodsLoading, setFoodsLoading] = useState(false);
 
   const cameraRef = useRef(null);
   const albumRef = useRef(null);
+
+  /** 打开「常见食物热量」抽屉：第一次打开时把营养库整表拉下来，之后走本地过滤 */
+  const openFoods = async () => {
+    setFoodsOpen(true);
+    if (foodList) return;
+    setFoodsLoading(true);
+    try {
+      const res = await api.foods();
+      setFoodList(res.data?.foods ?? []);
+    } catch (e) {
+      setToast({ type: 'error', text: e.message });
+    } finally {
+      setFoodsLoading(false);
+    }
+  };
+
+  /** 从速查表点一行 → 直接加成当前餐的一行明细（默认 100g，可再改克重） */
+  const addFoodRow = (food) => {
+    setRows((prev) => [
+      ...prev,
+      {
+        ...emptyRow(100),
+        food_name: food.name,
+        p100: {
+          calories: Number(food.calories_per_100g) || 0,
+          protein: Number(food.protein_per_100g) || 0,
+          fat: Number(food.fat_per_100g) || 0,
+          carbs: Number(food.carbs_per_100g) || 0,
+        },
+        source: 'food_db',
+      },
+    ]);
+    setManualMode(true);
+    setFoodsOpen(false);
+    setToast({ type: 'ok', text: `已加入 ${food.name}（100g，可改克重）` });
+  };
+
+  const foodMatches = useMemo(() => {
+    const list = foodList ?? [];
+    const q = foodQuery.trim();
+    if (!q) return list;
+    const hit = (f) =>
+      f.name.includes(q) || (f.alias ?? '').includes(q) || (f.category ?? '').includes(q);
+    return list.filter(hit);
+  }, [foodList, foodQuery]);
+
+  const foodGroups = useMemo(() => {
+    const map = new Map();
+    for (const f of foodMatches) {
+      const key = f.category || '其他';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(f);
+    }
+    return [...map.entries()];
+  }, [foodMatches]);
 
   const settings = useFetch(() => api.settings());
   const mealTypes = useFetch(() => api.mealTypes());
@@ -315,6 +375,13 @@ export default function Diet() {
           >
             拍照识别
           </CardTitle>
+          <button
+            type="button"
+            onClick={openFoods}
+            className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-500 active:bg-slate-100"
+          >
+            常见食物热量
+          </button>
         </div>
 
         {!visionReady && !fakeMode ? (
@@ -641,6 +708,82 @@ export default function Diet() {
       </Card>
 
       <Toast toast={toast} />
+
+      {foodsOpen ? (
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-900/40" onClick={() => setFoodsOpen(false)}>
+          <div
+            className="flex max-h-[82vh] w-full max-w-md flex-col rounded-t-2xl bg-white p-4 pb-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-800">
+                常见食物热量
+                <span className="ml-1.5 text-[11px] font-normal text-slate-400">
+                  {foodList ? `${foodList.length} 条 · 每 100g` : '加载中…'}
+                </span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setFoodsOpen(false)}
+                className="rounded-full px-2 py-1 text-xs text-slate-400 active:bg-slate-100"
+              >
+                关闭
+              </button>
+            </div>
+
+            <input
+              value={foodQuery}
+              onChange={(e) => setFoodQuery(e.target.value)}
+              placeholder="搜食物，如 米饭 / 鸡胸 / 苹果"
+              className="mb-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs outline-none placeholder:text-slate-300 focus:border-emerald-400 focus:bg-white"
+            />
+
+            <p className="mb-1.5 text-[11px] leading-relaxed text-slate-400">
+              点一行就直接加入当前这一餐（默认 100g，加完可以改克重）。数值是每 100g 参考值。
+            </p>
+
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {foodsLoading ? (
+                <p className="py-8 text-center text-xs text-slate-400">加载营养库…</p>
+              ) : foodMatches.length ? (
+                foodGroups.map(([cat, items]) => (
+                  <div key={cat} className="mb-2">
+                    <p className="sticky top-0 bg-white/95 py-1 text-[11px] font-medium text-slate-400">
+                      {cat}
+                    </p>
+                    <ul className="divide-y divide-slate-100">
+                      {items.map((f) => (
+                        <li key={f.id}>
+                          <button
+                            type="button"
+                            onClick={() => addFoodRow(f)}
+                            className="flex w-full items-baseline justify-between gap-2 py-2 text-left active:bg-slate-50"
+                          >
+                            <span className="min-w-0">
+                              <span className="text-xs text-slate-700">{f.name}</span>
+                              <span className="ml-1.5 text-[10px] text-slate-400">
+                                蛋 {f.protein_per_100g}g · 脂 {f.fat_per_100g}g · 碳 {f.carbs_per_100g}g
+                              </span>
+                            </span>
+                            <span className="tabular shrink-0 text-xs font-semibold text-slate-800">
+                              {f.calories_per_100g}
+                              <span className="ml-0.5 text-[10px] font-normal text-slate-400">kcal</span>
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))
+              ) : (
+                <p className="py-8 text-center text-xs text-slate-400">
+                  没找到「{foodQuery}」，换个叫法试试（可以试试更通用的名字）
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

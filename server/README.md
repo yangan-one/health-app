@@ -81,7 +81,7 @@ npm run dev              # 开发模式（改代码自动重启，Node 原生 --
 | POST | `/api/diet/records` | 保存一餐（营养素由服务端按营养库重算） |
 | GET | `/api/diet/records?date=YYYY-MM-DD` | 当天饮食列表 + 合计（按餐次） |
 | DELETE | `/api/diet/records/:id` | 删除一餐（连图片文件一起删） |
-| GET | `/api/diet/foods?q=` | 营养库搜索（58 条，支持菜名归一匹配） |
+| GET | `/api/diet/foods?q=` | 营养库搜索（138 条，支持菜名归一匹配） |
 | GET | `/api/diet/meal-types` | 早/午/晚/加餐 + 按服务器时间给出的建议餐次 |
 | GET | `/api/settings` | AI 配置（Key 一律脱敏） |
 | PUT | `/api/settings/ai` | 保存 `api_key` / `base_url` / `model`；`api_key: ""` = 清除 |
@@ -208,6 +208,7 @@ curl -X POST http://127.0.0.1:3001/api/settings/ai/test -H "Content-Type: applic
 - **Prompt 强制四步推演**：①识别菜名（混合菜拆成主要食材）→ ②用参照物估克重 → ③判断烹饪方式 → ④按油糖表修正。响应里每项带 `cooking_method`，顶层 `reasoning` 是这三步的结论（前端可展开给用户看）。
 - **模型只回答「是什么 + 多重 + 怎么做」**。营养素优先按本地 `foods` 营养库重算（响应里 `source: "food_db"`），菜名对不上才用模型给的数值（`source: "ai"`）。
 - **烹饪方式会改热量**：营养库是「生重/水煮」基准，`src/lib/cooking.js` 按做法补油糖（每 100g 菜品：清炒/炒 +7g 油、煎 +10g、炸 +14g、红烧 +7g 油 +5g 糖、糖醋 +7g 油 +10g 糖，油 9 kcal/g、糖 4 kcal/g）。同样 150g 鸡胸，水煮约 200 kcal，煎完约 335 kcal。
+- **营养库 138 条**：覆盖常见主食、肉蛋、豆乳、蔬菜、水果、零食饮品与外卖快餐（每 100g 数值取自《中国食物成分表》常见条目），视觉 Prompt 里也给了这份「标准叫法」，让模型输出的菜名更容易命中、少走模型估值的分支。
 - **不重复加油**：菜名本身已是成品（红烧肉、炸鸡、油条、汉堡…）时不再加，因为营养库里那一条已经算过油。
 - **接口返回 `per_100g`（不含烹饪用油）**，前端改克重时用它 × 克重 + 油糖修正，本地即时重算，结果与服务端一致（不对的话对账会差 1 kcal，取整顺序已对齐）。
 - **两阶段**：`/api/diet/analyze` 只识别（用户还能改克重），确认后才 `POST /api/diet/records` 落库；前端把 `cooking_method` 一起传回来，服务端复算。
