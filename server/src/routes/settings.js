@@ -9,6 +9,7 @@ import {
   testAiConnection,
   testVisionConnection,
 } from '../lib/ai.js';
+import { aiGuard, RATE_RULES } from '../lib/ratelimit.js';
 
 const router = Router();
 
@@ -81,6 +82,9 @@ router.put('/settings/ai', (req, res) => {
  */
 router.post('/settings/ai/test', async (req, res, next) => {
   try {
+    // 检测也要限速：视觉检测会真的发一张图上去，狂点同样是消耗
+    aiGuard(req, 'ai_test', RATE_RULES.ai_test);
+
     const body = req.body ?? {};
     const pick = (v) => (v ? String(v).trim() : undefined);
     const [text, vision] = await Promise.all([

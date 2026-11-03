@@ -507,6 +507,8 @@ export default function Profile() {
             ['视觉模型', ai?.vision?.model || '未配置'],
             ['接口地址', ai?.vision?.base_url || ai?.base_url || '—'],
             ['拍照识别', ai?.vision?.fake ? '演示模式（不调用模型）' : ai?.vision?.configured ? '可用' : '不可用'],
+            ['允许的接口', (ai?.allowed_hosts ?? []).join('、') || '—'],
+            ['每日 AI 上限', `${ai?.daily_ai_limit ?? '—'} 次（全站合计）`],
           ].map(([label, value]) => (
             <div key={label} className="flex items-baseline justify-between gap-3">
               <span className="shrink-0 text-slate-400">{label}</span>

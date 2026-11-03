@@ -25,6 +25,49 @@ export const AI_DEFAULTS = {
 };
 
 /**
+ * 供应商白名单：默认只允许智谱开放平台。
+ *
+ * 为什么要这条锁：这个站点要发给朋友用，万一某个环境变量/数据库设置里
+ * 残留了 api.deepseek.com 这类「按量计费」的地址，别人随便问几句就会
+ * 从我的账户扣钱。所以默认只在允许列表内放行，换厂商必须显式改
+ * 环境变量 AI_ALLOWED_HOSTS（例如加 dashscope.aliyuncs.com）。
+ */
+export const ALLOWED_HOSTS = (process.env.AI_ALLOWED_HOSTS || 'open.bigmodel.cn')
+  .split(',')
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
+
+export function hostOf(baseUrl) {
+  try {
+    return new URL(String(baseUrl)).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+/** 判断某个接口地址是否在白名单内 */
+export function isAllowedHost(baseUrl) {
+  const host = hostOf(baseUrl);
+  if (!host) return false;
+  return ALLOWED_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
+}
+
+/**
+ * 调用上游前先过这道锁。不在白名单里直接抛 502（不会发出请求，自然不产生费用）。
+ * @param {string} baseUrl 接口地址
+ * @param {string} kind 给用户看的名字，如「文本模型」「拍照识别」
+ */
+export function assertAllowedProvider(baseUrl, kind = 'AI 接口') {
+  if (isAllowedHost(baseUrl)) return;
+  const host = hostOf(baseUrl) || String(baseUrl);
+  throw new ApiError(
+    502,
+    `${kind}的接口地址（${host}）不在允许列表内。为了避免意外产生大模型费用，` +
+      `服务端默认只允许：${ALLOWED_HOSTS.join('、')}。确实要换厂商，请把它的域名加到环境变量 AI_ALLOWED_HOSTS。`
+  );
+}
+
+/**
  * 常见视觉模型预设（都是真实的 OpenAI 兼容接口）。
  * 放在服务端是为了让前端只做展示，避免两处硬编码漂移。
  */
@@ -277,6 +320,10 @@ export function publicAiConfig() {
     },
     vision_presets: VISION_PRESETS,
     fake_mode: vision.fake,
+    // 供应商白名单：前端「我的」页据此提示「当前只允许智谱」，避免误配到收费平台
+    allowed_hosts: ALLOWED_HOSTS,
+    provider_allowed: { text: isAllowedHost(cfg.base_url), vision: isAllowedHost(vision.base_url) },
+    daily_ai_limit: Number(process.env.AI_DAILY_LIMIT) || 300,
   };
 }
 
@@ -295,6 +342,13 @@ export async function testAiConnection(override = {}, { timeoutMs = 8000 } = {})
   }
 
   const started = Date.now();
+  if (!isAllowedHost(baseUrl)) {
+    return {
+      ok: false,
+      reason: 'provider_blocked',
+      message: `接口地址 ${hostOf(baseUrl) || baseUrl} 不在允许列表内（只允许 ${ALLOWED_HOSTS.join('、')}），已拒绝发送请求`,
+    };
+  }
   try {
     const res = await fetch(`${baseUrl}/models`, {
       headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
@@ -418,6 +472,13 @@ export async function testVisionConnection(override = {}, { timeoutMs = 20000 } 
   }
 
   const started = Date.now();
+  if (!isAllowedHost(baseUrl)) {
+    return {
+      ok: false,
+      reason: 'provider_blocked',
+      message: `视觉接口地址 ${hostOf(baseUrl) || baseUrl} 不在允许列表内（只允许 ${ALLOWED_HOSTS.join('、')}），已拒绝发送请求`,
+    };
+  }
   try {
     const res = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
@@ -514,6 +575,9 @@ export async function chatStream({
         '如果你已经配了视觉 Key（同一家厂商），程序会自动复用它（智谱会用 glm-4-flash）。改完记得重启后端。'
     );
   }
+
+  // 发请求前先确认这家厂商在允许列表里：不在就直接失败，绝不把请求发出去
+  assertAllowedProvider(cfg.base_url, '文本模型');
 
   let res;
   try {

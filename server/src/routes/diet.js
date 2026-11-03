@@ -5,6 +5,7 @@ import { ApiError, parseDate, requireObject, round, todayLocal } from '../lib/ut
 import { analyzeFoodImage, guessMealType, MEAL_LABELS } from '../lib/vision.js';
 import { listFoods, matchFood, resolveItemNutrition, sumItems } from '../lib/foods.js';
 import { parseImageDataUrl, removeImage, saveImage } from '../lib/images.js';
+import { aiDailyGuard, aiGuard, RATE_RULES } from '../lib/ratelimit.js';
 
 const router = Router();
 const MEAL_TYPES = Object.keys(MEAL_LABELS);
@@ -83,6 +84,10 @@ function getRecord(id) {
 router.post('/diet/analyze', async (req, res, next) => {
   let saved = null;
   try {
+    // 冷却 + 配额：放在最前面，被拦下的请求连图片都不会落盘，更不会调用视觉模型
+    aiDailyGuard('analyze');
+    aiGuard(req, 'analyze', RATE_RULES.analyze);
+
     const body = requireObject(req.body);
     const { buffer, ext } = parseImageDataUrl(body.image);
     const recordDate = parseDate(body.record_date);

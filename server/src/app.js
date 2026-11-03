@@ -86,7 +86,7 @@ export function createApp() {
     res.json({
       ok: true,
       service: 'health-app-server',
-      version: '0.7.3',
+      version: '0.7.4',
       sqlite_driver: DRIVER,
       auth_enabled: true,
       auth_mode: 'multi-user',

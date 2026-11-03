@@ -9,6 +9,9 @@ import Toast from '../components/Toast.jsx';
 
 const MEAL_LABEL = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' };
 
+/** 识别后的前端冷却秒数（和服务端 RATE_RULES.analyze 的 15 秒保持一个量级，先松后紧） */
+const ANALYZE_COOLDOWN_SEC = 5;
+
 const num = (v) => {
   const n = Number(String(v ?? '').replace(/[^\d.]/g, ''));
   return Number.isFinite(n) ? n : 0;
@@ -88,6 +91,8 @@ export default function Diet() {
   const [toast, setToast] = useState(null);
   const [manualMode, setManualMode] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  // 识别冷却倒计时（秒）：训练用户别狂点，真正的拦截在服务端
+  const [cooldown, setCooldown] = useState(0);
 
   const cameraRef = useRef(null);
   const albumRef = useRef(null);
@@ -104,6 +109,14 @@ export default function Diet() {
   useEffect(() => {
     if (mealTypes.data?.suggested) setMealType(mealTypes.data.suggested);
   }, [mealTypes.data?.suggested]);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((s) => Math.max(0, s - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  const coolingDown = cooldown > 0;
 
   useEffect(() => {
     if (!toast) return;
@@ -139,6 +152,8 @@ export default function Diet() {
         showToast('error', err.message);
       } finally {
         setBusy(false);
+        // 前端冷却：服务端也有 15 秒冷却兜底，这里先让按钮变灰，避免用户白点
+        setCooldown(ANALYZE_COOLDOWN_SEC);
       }
     },
     [today]
@@ -365,20 +380,20 @@ export default function Diet() {
             <button
               type="button"
               onClick={() => cameraRef.current?.click()}
-              disabled={busy}
-              className="flex flex-col items-center gap-1 rounded-2xl border border-dashed border-slate-300 py-5 text-slate-500 transition hover:border-emerald-400 hover:text-emerald-600"
+              disabled={busy || coolingDown}
+              className="flex flex-col items-center gap-1 rounded-2xl border border-dashed border-slate-300 py-5 text-slate-500 transition hover:border-emerald-400 hover:text-emerald-600 disabled:opacity-50"
             >
               <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
                 <circle cx="12" cy="13" r="3.2" />
               </svg>
-              <span className="text-xs font-medium">拍一张</span>
+              <span className="text-xs font-medium">{coolingDown ? `冷却 ${cooldown}s` : '拍一张'}</span>
             </button>
             <button
               type="button"
               onClick={() => albumRef.current?.click()}
-              disabled={busy}
-              className="flex flex-col items-center gap-1 rounded-2xl border border-dashed border-slate-300 py-5 text-slate-500 transition hover:border-emerald-400 hover:text-emerald-600"
+              disabled={busy || coolingDown}
+              className="flex flex-col items-center gap-1 rounded-2xl border border-dashed border-slate-300 py-5 text-slate-500 transition hover:border-emerald-400 hover:text-emerald-600 disabled:opacity-50"
             >
               <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="5" width="18" height="14" rx="2" />

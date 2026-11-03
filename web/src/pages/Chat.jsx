@@ -3,6 +3,9 @@ import { api, streamChat } from '../api/client.js';
 import { todayISO } from '../lib/format.js';
 
 /** 一条消息气泡 */
+/** 回答结束后前端冷却秒数（服务端另有 5 秒冷却 + 10 分钟 30 条配额） */
+const SEND_COOLDOWN_SEC = 3;
+
 function Bubble({ role, content, streaming }) {
   const mine = role === 'user';
   return (
@@ -56,6 +59,13 @@ export default function Chat() {
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState('');
   const [busy, setBusy] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((s) => Math.max(0, s - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
   const [error, setError] = useState('');
   const [showCtx, setShowCtx] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -137,7 +147,8 @@ export default function Chat() {
 
   const send = async (text) => {
     const content = (text ?? input).trim();
-    if (!content || busy) return;
+    // cooldown：回答结束后 3 秒内不许再发，避免连点把免费模型的频率上限打爆
+    if (!content || busy || cooldown > 0) return;
 
     setInput('');
     setError('');
@@ -177,6 +188,7 @@ export default function Chat() {
     } finally {
       abortRef.current = null;
       setBusy(false);
+      setCooldown(SEND_COOLDOWN_SEC);
     }
   };
 
@@ -325,10 +337,10 @@ export default function Chat() {
           <button
             type="button"
             onClick={() => send()}
-            disabled={busy || !input.trim()}
+            disabled={busy || cooldown > 0 || !input.trim()}
             className="h-[42px] shrink-0 rounded-2xl bg-emerald-600 px-4 text-[13px] font-medium text-white transition active:bg-emerald-700 disabled:bg-slate-300"
           >
-            发送
+            {cooldown > 0 ? `${cooldown}s` : '发送'}
           </button>
         </div>
         <p className="mt-1.5 text-center text-[10px] text-slate-400">

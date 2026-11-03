@@ -1,5 +1,5 @@
 import { ApiError } from './util.js';
-import { getVisionConfig } from './ai.js';
+import { assertAllowedProvider, getVisionConfig } from './ai.js';
 import { COOKING_METHODS, normalizeCookingMethod } from './cooking.js';
 
 export { COOKING_METHODS, normalizeCookingMethod };
@@ -269,6 +269,8 @@ export async function analyzeFoodImage(imageDataUrl, { mealType = null, hint = '
   }
 
   const started = Date.now();
+  // 供应商白名单：不允许的域名直接失败，请求不会发出去（自然也不产生费用）
+  assertAllowedProvider(cfg.base_url, '拍照识别的视觉模型');
   let res;
   try {
     res = await fetch(`${cfg.base_url}/chat/completions`, {

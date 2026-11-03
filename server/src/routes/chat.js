@@ -5,6 +5,7 @@ import { ApiError, parseDate, requireObject, todayLocal } from '../lib/util.js';
 import { buildHealthContext } from '../lib/healthContext.js';
 import { buildChatMessages, suggestQuestions } from '../lib/chatPrompt.js';
 import { chatStream, publicAiConfig } from '../lib/ai.js';
+import { aiDailyGuard, aiGuard, RATE_RULES } from '../lib/ratelimit.js';
 
 const router = Router();
 
@@ -149,6 +150,10 @@ router.get('/chat/conversations/:id/messages', (req, res, next) => {
 router.post('/chat/conversations/:id/messages', async (req, res, next) => {
   let conv;
   try {
+    // 冷却 + 配额：放在最前面，被拦下的请求不会落库、也不会调用大模型
+    aiDailyGuard('chat');
+    aiGuard(req, 'chat', RATE_RULES.chat);
+
     conv = getConversation(req.params.id);
     const body = requireObject(req.body);
     const content = typeof body.content === 'string' ? body.content.trim() : '';
