@@ -365,12 +365,15 @@ export async function testAiConnection(override = {}, { timeoutMs = 8000 } = {})
 
     if (!res.ok) {
       const detail = body?.error?.message || text.slice(0, 200) || `HTTP ${res.status}`;
+      const isAuth = res.status === 401 || res.status === 403;
       return {
         ok: false,
-        reason: 'http_error',
+        reason: isAuth ? 'invalid_key' : 'http_error',
         status: res.status,
         latency_ms: latency,
-        message: `连接失败（HTTP ${res.status}）：${detail}`,
+        message: isAuth
+          ? `API Key 已失效（HTTP ${res.status}：${detail}）——去 open.bigmodel.cn 重新生成，更新环境变量 AI_API_KEY / AI_VISION_API_KEY 后重启`
+          : `连接失败（HTTP ${res.status}）：${detail}`,
       };
     }
 
@@ -514,13 +517,16 @@ export async function testVisionConnection(override = {}, { timeoutMs = 20000 } 
 
     if (!res.ok) {
       const detail = body?.error?.message || body?.message || text.slice(0, 200) || `HTTP ${res.status}`;
+      const isAuth = res.status === 401 || res.status === 403;
       return {
         ok: false,
-        reason: 'http_error',
+        reason: isAuth ? 'invalid_key' : 'http_error',
         status: res.status,
         latency_ms: latency,
         model,
-        message: `视觉模型连接失败（HTTP ${res.status}）：${detail}`,
+        message: isAuth
+          ? `视觉模型的 API Key 已失效（HTTP ${res.status}：${detail}）——去 open.bigmodel.cn 重新生成，更新环境变量 AI_VISION_API_KEY 后重启`
+          : `视觉模型连接失败（HTTP ${res.status}）：${detail}`,
       };
     }
 
@@ -613,6 +619,15 @@ export async function chatStream({
       body = null;
     }
     const detail = body?.error?.message || body?.message || text.slice(0, 300) || `HTTP ${res.status}`;
+    // 401/403：Key 失效或被撤销（不是网页登录过期，别让用户去重新登录）
+    if (res.status === 401 || res.status === 403) {
+      throw new ApiError(
+        502,
+        `AI 的 API Key 已失效（上游返回 ${res.status}：${detail}）。请到 open.bigmodel.cn 重新生成 Key，` +
+          '更新服务器环境变量 AI_VISION_API_KEY，然后重启服务。',
+        { provider: 'text', upstream_status: res.status, code: 'AI_KEY_INVALID' }
+      );
+    }
     const hint =
       res.status === 404 || /model|not found/i.test(detail)
         ? `。请检查 health-app/server/.env 里的 AI_MODEL（当前是 ${cfg.model}）`

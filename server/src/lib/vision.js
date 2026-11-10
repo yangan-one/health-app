@@ -325,6 +325,16 @@ export async function analyzeFoodImage(imageDataUrl, { mealType = null, hint = '
 
   if (!res.ok) {
     const detail = body?.error?.message || text.slice(0, 300) || `HTTP ${res.status}`;
+    // 401/403 几乎都是「Key 失效 / 被撤销 / 额度与权限没了」，跟本应用的登录无关，
+    // 直接把话说清楚，免得用户以为是网页登录掉了
+    if (res.status === 401 || res.status === 403) {
+      throw new ApiError(
+        502,
+        `AI 的 API Key 已失效（上游返回 ${res.status}：${detail}）。请到 open.bigmodel.cn 重新生成 Key，` +
+          '更新服务器环境变量 AI_VISION_API_KEY，然后重启服务。',
+        { provider: 'vision', upstream_status: res.status, code: 'AI_KEY_INVALID' }
+      );
+    }
     const hintText =
       res.status === 404 || /model|not found/i.test(detail)
         ? '（看起来这个 Base URL 下没有该模型，请检查 .env 里的 AI_VISION_MODEL 与 AI_VISION_BASE_URL）'
